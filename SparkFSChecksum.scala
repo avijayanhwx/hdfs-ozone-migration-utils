@@ -20,7 +20,7 @@ class SerializableConfiguration(@transient var value: Configuration) extends Ser
   }
 }
 
-object SparkListLeafFilesinFS {
+object SparkFSUtils {
 
     def getHdfs(path: String): FileSystem = {
       val conf = new Configuration()
@@ -59,17 +59,17 @@ object SparkListLeafFilesinFS {
 
 val spark = SparkSession.builder().appName(this.getClass.getName).getOrCreate()
 
-val defaultFs = spark.sparkContext.broadcast("hdfs://av-distcp-1.av-distcp.root.hwx.site:8020")
-val path = "ofs://ozone1/vol-0-38488"
+//val defaultFs = spark.sparkContext.broadcast("hdfs://av-distcp-1.av-distcp.root.hwx.site:8020")
+val path = "<fs.defaultFs>/path_to_be_scanned"
 val chunkSize = spark.sparkContext.broadcast(1024)
-val resultFile = "/tmp/file-md5-ozone"
+val resultFile = "<fs.defaultFs>/path_for_result_file"
 
-val allFiles : ArrayBuffer[String] = SparkListLeafFilesinFS.getAllFiles(path)
+val allFiles : ArrayBuffer[String] = SparkFSUtils.getAllFiles(path)
 val leafFilesRdd = spark.sparkContext.parallelize(allFiles)
 
 val statusRdd = leafFilesRdd.map(file => new Path(file)).map(path => {
     val conf = new Configuration()
-    conf.set("fs.defaultFS", "ofs://ozone1")
+    conf.set("fs.defaultFS", "<fs.defaultFs>")
     val fs = path.getFileSystem(conf)
     val is = fs.open(path)
     val byteArray: Array[Byte] = Array.ofDim[Byte](1024)
@@ -89,5 +89,5 @@ val statusRdd = leafFilesRdd.map(file => new Path(file)).map(path => {
     val digestBytes: Array[Byte] = digest.digest()
     val hash: String = DatatypeConverter.printHexBinary(digestBytes);
     (path.toString, hash, totalBytes, numChunks)
-  }).repartition(1).sortBy(_._1).toDF("Path", "MD5 Hash", "Total Bytes", "Number of chunks").write.option("header",true).mode("overwrite").csv(defaultFs.value + resultFile)
+  }).repartition(1).sortBy(_._1).toDF("Path", "MD5 Hash", "Total Bytes", "Number of chunks").write.option("header",true).mode("overwrite").csv(resultFile)
 
